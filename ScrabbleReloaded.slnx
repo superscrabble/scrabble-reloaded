@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/.github/workflows/">
+    <File Path=".github\workflows\ci.yaml" />
+  </Folder>
+  <Folder Name="/root/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="Directory.Build.props" />
+    <File Path="nuget.config" />
+    <File Path=".gitattributes" />
+  </Folder>
+  <Folder Name="/root/.github/" />
+  <Folder Name="/root/Gameplay/">
+    <Project Path="Gameplay/Gameplay.Domain/Gameplay.Domain.csproj" />
+  </Folder>
+</Solution>
