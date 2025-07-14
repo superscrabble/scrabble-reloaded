@@ -102,7 +102,7 @@ public sealed class Game
         _currentPlayer.ReturnTilesToBag(tilesToExchange, _bag);
         _bag.ShuffleTiles();
 
-        ImmutableArray<Tile> newTiles = [.._bag.DrawTiles(tilesToExchange.Length)];
+        ImmutableArray<Tile> newTiles = [.. _bag.DrawTiles(tilesToExchange.Length)];
         _currentPlayer.AddTilesToRack(newTiles);
         _currentPlayer.ResetConsecutivePassesCount();
         NextTurn();
