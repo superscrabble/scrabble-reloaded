@@ -1,18 +1,21 @@
 <Solution>
-    <Folder Name="/.github/workflows/">
-        <File Path=".github\workflows\ci.yaml"/>
-    </Folder>
-    <Folder Name="/root/">
-        <File Path=".editorconfig"/>
-        <File Path=".gitignore"/>
-        <File Path="Directory.Build.props"/>
-        <File Path="nuget.config"/>
-        <File Path=".gitattributes"/>
-        <File Path="Directory.Packages.props"/>
-    </Folder>
-    <Folder Name="/root/.github/"/>
-    <Folder Name="/root/Gameplay/">
-        <Project Path="Gameplay/Gameplay.Domain/Gameplay.Domain.csproj"/>
-        <Project Path="Gameplay\Gameplay.Domain.UnitTests\Gameplay.Domain.UnitTests.csproj" Type="Classic C#"/>
-    </Folder>
+  <Folder Name="/.github/workflows/">
+    <File Path=".github\workflows\ci.yaml" />
+  </Folder>
+  <Folder Name="/root/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="Directory.Build.props" />
+    <File Path="nuget.config" />
+    <File Path=".gitattributes" />
+    <File Path="Directory.Packages.props" />
+  </Folder>
+  <Folder Name="/root/.github/" />
+  <Folder Name="/root/.github/workflows/">
+    <File Path=".github\workflows\ci.yaml" />
+  </Folder>
+  <Folder Name="/root/Gameplay/">
+    <Project Path="Gameplay/Gameplay.Domain/Gameplay.Domain.csproj" />
+    <Project Path="Gameplay\Gameplay.Domain.UnitTests\Gameplay.Domain.UnitTests.csproj" Type="Classic C#" />
+  </Folder>
 </Solution>
