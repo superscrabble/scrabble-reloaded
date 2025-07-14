@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TestingPlatformDotnetTestSupport>false</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner>false</UseMicrosoftTestingPlatformRunner>
+  </PropertyGroup>
   
   <ItemGroup>
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
