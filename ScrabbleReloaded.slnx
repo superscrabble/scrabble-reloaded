@@ -1,7 +1,4 @@
 <Solution>
-  <Folder Name="/.github/workflows/">
-    <File Path=".github\workflows\ci.yaml" />
-  </Folder>
   <Folder Name="/root/">
     <File Path=".editorconfig" />
     <File Path=".gitignore" />
