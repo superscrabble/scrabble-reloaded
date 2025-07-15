@@ -16,11 +16,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
-  </ItemGroup>
+        <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
+
+
+      </ItemGroup>
 
   <ItemGroup>
-    <Using Include="Xunit"/>
+      <Using Include="Xunit"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -30,6 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
+  
     <ProjectReference Include="..\Gameplay.Domain\Gameplay.Domain.csproj"/>
   </ItemGroup>
 
