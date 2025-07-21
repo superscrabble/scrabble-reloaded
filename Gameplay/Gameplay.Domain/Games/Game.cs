@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 
 using Gameplay.Domain.Bags;
 using Gameplay.Domain.Players;
+using Gameplay.Domain.Settings;
 using Gameplay.Domain.Tiles;
 
 namespace Gameplay.Domain.Games;

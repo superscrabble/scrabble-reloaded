@@ -1,4 +1,4 @@
-namespace Gameplay.Domain.Games;
+namespace Gameplay.Domain.Settings;
 
 public sealed record MaximumConsecutivePasses
 {
