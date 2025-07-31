@@ -5,14 +5,15 @@ namespace Gameplay.Domain.Bags;
 public sealed class Bag : IBag
 {
     private readonly List<Tile> _tilesInBag = [];
+    private readonly IShuffler _shuffler;
 
-    private Bag() { }
+    private Bag(IShuffler shuffler) => _shuffler = shuffler;
 
     public int TilesCount => _tilesInBag.Count;
 
     public void AddTiles(IEnumerable<Tile> tiles) => _tilesInBag.AddRange(tiles);
 
-    public void ShuffleTiles() => throw new NotImplementedException();
+    public void ShuffleTiles() => _shuffler.Shuffle(_tilesInBag);
 
     public IEnumerable<Tile> DrawTiles(int count)
     {
@@ -26,5 +27,12 @@ public sealed class Bag : IBag
         }
 
         _tilesInBag.RemoveRange(0, tilesToDraw);
+    }
+
+    public static Bag Create(IShuffler shuffler, IEnumerable<Tile> tiles)
+    {
+        var bag = new Bag(shuffler);
+        bag.AddTiles(tiles);
+        return bag;
     }
 }

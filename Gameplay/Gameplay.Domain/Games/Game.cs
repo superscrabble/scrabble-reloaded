@@ -9,12 +9,12 @@ namespace Gameplay.Domain.Games;
 
 public sealed class Game
 {
-    private const int MinimumPlayersCount = 2;
-    private const int MaximumPlayersCount = 4;
+    public const int MinimumPlayersCount = 2;
+    public const int MaximumPlayersCount = 4;
 
     private readonly IBag _bag;
     private readonly MaximumConsecutivePasses _maximumConsecutivePasses;
-    private readonly List<IPlayer> _players;
+    private readonly ImmutableList<IPlayer> _players;
 
     private IPlayer _currentPlayer;
 
@@ -23,7 +23,8 @@ public sealed class Game
         IBag bag,
         List<IPlayer> players,
         IPlayer currentPlayer,
-        MaximumConsecutivePasses maximumConsecutivePasses)
+        MaximumConsecutivePasses maximumConsecutivePasses,
+        bool hasEnded)
     {
         Id = id;
         _bag = bag;
@@ -32,7 +33,7 @@ public sealed class Game
         ArgumentOutOfRangeException.ThrowIfNotEqual(players.Count, distinctPlayersCount);
         ArgumentOutOfRangeException.ThrowIfLessThan(players.Count, MinimumPlayersCount);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(players.Count, MaximumPlayersCount);
-        _players = players;
+        _players = [.. players];
 
         if (!players.Contains(currentPlayer))
         {
@@ -41,11 +42,16 @@ public sealed class Game
 
         _currentPlayer = currentPlayer;
         _maximumConsecutivePasses = maximumConsecutivePasses;
+
+        ArgumentOutOfRangeException.ThrowIfEqual(hasEnded, true);
+        HasEnded = hasEnded;
     }
 
     private GameId Id { get; }
 
     public bool HasEnded { get; private set; }
+
+    public PlayerId CurrentPlayerId => _currentPlayer.Id;
 
     public ImmutableArray<PlayerId> Winners { get; private set; }
 
@@ -61,14 +67,14 @@ public sealed class Game
         var allPlayersHaveReachedMaximumPasses =
             NonSurrenderedPlayers.All(p => p.ConsecutivePasses.Value >= _maximumConsecutivePasses.Value);
 
-        if (allPlayersHaveReachedMaximumPasses)
-        {
-            EndGame();
-        }
-        else
+        if (!allPlayersHaveReachedMaximumPasses)
         {
             NextTurn();
+            return;
         }
+
+        SubtractRemainingTilesPointsFromPlayerScores();
+        EndGame();
     }
 
     public void Surrender(PlayerId playerId)
@@ -100,22 +106,49 @@ public sealed class Game
         ArgumentOutOfRangeException.ThrowIfLessThan(_bag.TilesCount, _currentPlayer.RackCapacity.Value);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(tilesToExchange.Length, _currentPlayer.RackCapacity.Value);
 
-        _currentPlayer.ReturnTilesToBag(tilesToExchange, _bag);
+        _currentPlayer.RemoveTilesFromRack(tilesToExchange);
+        _bag.AddTiles(tilesToExchange);
         _bag.ShuffleTiles();
 
         var newTiles = _bag.DrawTiles(tilesToExchange.Length).ToImmutableArray();
         _currentPlayer.AddTilesToRack(newTiles);
         _currentPlayer.ResetConsecutivePassesCount();
+
         NextTurn();
+    }
+
+    public void WriteWords(PlayerId playerId, WrittenWords writtenWords)
+    {
+        ThrowIfGameHasEnded();
+        ThrowIfPlayerIsNotOnTurn(playerId);
+
+        _currentPlayer.RemoveTilesFromRack(writtenWords.UsedPlayerTiles);
+
+        var newTiles = _bag.DrawTiles(writtenWords.UsedPlayerTiles.Length).ToImmutableArray();
+        _currentPlayer.AddTilesToRack(newTiles);
+
+        _currentPlayer.IncrementPoints(writtenWords.TotalPoints);
+        _currentPlayer.ResetConsecutivePassesCount();
+
+        var gameShouldEnd = _bag.TilesCount <= 0 && !_currentPlayer.HasAnyTiles;
+
+        if (!gameShouldEnd)
+        {
+            NextTurn();
+            return;
+        }
+
+        AddOpponenetsRemainingTilesPointsToCurrentPlayerScore();
+        SubtractRemainingTilesPointsFromPlayerScores();
+        EndGame();
     }
 
     private void EndGame()
     {
-        var mostPlayerPoints = NonSurrenderedPlayers.Select(p => p.Points).MaxBy(p => p.Value);
-        ArgumentNullException.ThrowIfNull(mostPlayerPoints);
+        var mostPlayerPoints = NonSurrenderedPlayers.Max(p => p.Score);
 
         var winners = NonSurrenderedPlayers
-            .Where(p => p.Points == mostPlayerPoints)
+            .Where(p => p.Score == mostPlayerPoints)
             .Select(p => p.Id)
             .ToImmutableArray();
 
@@ -166,13 +199,39 @@ public sealed class Game
         }
     }
 
-    public static Game New(
+    private void AddOpponenetsRemainingTilesPointsToCurrentPlayerScore()
+    {
+        var opponentsPoints = NonSurrenderedPlayers
+            .Where(p => p.Id != _currentPlayer.Id)
+            .Sum(p => p.RemainingTilesPoints);
+
+        _currentPlayer.IncrementPoints(opponentsPoints);
+    }
+
+    private void SubtractRemainingTilesPointsFromPlayerScores()
+    {
+        foreach (var player in NonSurrenderedPlayers)
+        {
+            player.SubtractRemainingTilesPointsFromScore();
+        }
+    }
+
+    public static Game Create(
+        GameId id,
         IBag bag,
         List<IPlayer> players,
         IPlayer currentPlayer,
-        MaximumConsecutivePasses maximumConsecutivePasses)
+        MaximumConsecutivePasses maximumConsecutivePasses,
+        bool hasEnded)
     {
-        Game game = new(GameId.New(), bag, players, currentPlayer, maximumConsecutivePasses);
+        var game = new Game(
+            id,
+            bag,
+            players,
+            currentPlayer,
+            maximumConsecutivePasses,
+            hasEnded);
+
         return game;
     }
 }

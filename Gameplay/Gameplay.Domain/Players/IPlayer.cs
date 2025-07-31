@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 
-using Gameplay.Domain.Bags;
 using Gameplay.Domain.Settings;
 using Gameplay.Domain.Tiles;
 
@@ -14,17 +13,25 @@ public interface IPlayer
 
     ConsecutivePasses ConsecutivePasses { get; }
 
-    PlayerPoints Points { get; }
+    int Score { get; }
+
+    bool HasAnyTiles { get; }
 
     bool HasSurrendered { get; }
+
+    int RemainingTilesPoints { get; }
+
+    void Surrender();
+
+    void IncrementPoints(int points);
+
+    void SubtractRemainingTilesPointsFromScore();
 
     void IncrementConsecutivePasses();
 
     void ResetConsecutivePassesCount();
 
-    void Surrender();
-
     void AddTilesToRack(ImmutableArray<Tile> tiles);
 
-    void ReturnTilesToBag(ImmutableArray<Tile> tiles, IBag bag);
+    void RemoveTilesFromRack(ImmutableArray<Tile> tiles);
 }

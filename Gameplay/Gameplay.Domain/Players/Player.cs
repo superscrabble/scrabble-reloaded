@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 
-using Gameplay.Domain.Bags;
 using Gameplay.Domain.Settings;
 using Gameplay.Domain.Tiles;
 
@@ -12,21 +11,45 @@ public sealed class Player : IPlayer
 
     private Player(
         PlayerId id,
-        RackCapacity rackCapacity)
+        RackCapacity rackCapacity,
+        ConsecutivePasses consecutivePasses,
+        int score,
+        bool hasSurrendered)
     {
         Id = id;
         RackCapacity = rackCapacity;
+        ConsecutivePasses = consecutivePasses;
+        Score = score;
+        HasSurrendered = hasSurrendered;
     }
 
     public PlayerId Id { get; }
 
     public RackCapacity RackCapacity { get; }
 
-    public ConsecutivePasses ConsecutivePasses { get; private set; } = ConsecutivePasses.Initial;
+    public ConsecutivePasses ConsecutivePasses { get; private set; }
 
-    public PlayerPoints Points { get; } = PlayerPoints.Initial;
+    public int Score { get; private set; }
+
+    public bool HasAnyTiles => _tilesOnRack.Count > 0;
 
     public bool HasSurrendered { get; private set; }
+
+    public int RemainingTilesPoints => _tilesOnRack.Sum(t => t.Points);
+
+    public void Surrender() => HasSurrendered = true;
+
+    public void IncrementPoints(int points)
+    {
+        ThrowIfPlayerHasSurrendered();
+        Score += points;
+    }
+
+    public void SubtractRemainingTilesPointsFromScore()
+    {
+        ThrowIfPlayerHasSurrendered();
+        Score -= RemainingTilesPoints;
+    }
 
     public void ResetConsecutivePassesCount()
     {
@@ -40,8 +63,6 @@ public sealed class Player : IPlayer
         ConsecutivePasses = ConsecutivePasses.Increment();
     }
 
-    public void Surrender() => HasSurrendered = true;
-
     public void AddTilesToRack(ImmutableArray<Tile> tiles)
     {
         ThrowIfPlayerHasSurrendered();
@@ -49,12 +70,22 @@ public sealed class Player : IPlayer
         _tilesOnRack.AddRange(tiles);
     }
 
-    public void ReturnTilesToBag(ImmutableArray<Tile> tiles, IBag bag)
+    public void RemoveTilesFromRack(ImmutableArray<Tile> tiles)
     {
-        ThrowIfPlayerHasSurrendered();
         ThrowIfPlayerDoesNotOwnTiles(tiles);
-        RemoveTilesFromRack(tiles);
-        bag.AddTiles(tiles);
+
+        foreach (var tile in tiles)
+        {
+            _tilesOnRack.Remove(tile);
+        }
+    }
+
+    private void ThrowIfPlayerHasSurrendered()
+    {
+        if (HasSurrendered)
+        {
+            throw new PlayerHasSurrenderedException(Id);
+        }
     }
 
     private void ThrowIfPlayerDoesNotOwnTiles(IEnumerable<Tile> tiles)
@@ -69,22 +100,6 @@ public sealed class Player : IPlayer
             {
                 throw new PlayerDoesNotOwnTileException(Id);
             }
-        }
-    }
-
-    private void RemoveTilesFromRack(IEnumerable<Tile> tilesToExchange)
-    {
-        foreach (var tileToExchange in tilesToExchange)
-        {
-            _tilesOnRack.Remove(tileToExchange);
-        }
-    }
-
-    private void ThrowIfPlayerHasSurrendered()
-    {
-        if (HasSurrendered)
-        {
-            throw new PlayerHasSurrenderedException(Id);
         }
     }
 }
