@@ -121,6 +121,8 @@ public sealed class GameTests
         //Assert
         currentPlayer.Received().IncrementConsecutivePasses();
         game.CurrentPlayerId.ShouldBeEquivalentTo(player2.Id);
+        game.HasEnded.ShouldBeFalse();
+        game.Winners.ShouldBeEmpty();
     }
 
     [Fact]
@@ -183,5 +185,178 @@ public sealed class GameTests
         game.Winners.ShouldContain(player1.Id);
         game.Winners.ShouldContain(player4.Id);
         game.Winners.Length.ShouldBe(2);
+    }
+
+    [Fact]
+    public void Surrender_ShouldThrowException_WhenGameHasEnded()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+
+        var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(x =>
+        {
+            var player = Substitute.For<IPlayer>();
+            player.Id.Returns(PlayerId.New());
+            return player;
+        })
+        .ToList();
+
+        var currentPlayer = players.First();
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            hasEnded: false);
+
+        game.AsDynamic().HasEnded = true;
+
+        //Act
+        Action act = () => game.Surrender(currentPlayer.Id);
+
+        //Assert
+        act.ShouldThrow<GameHasAlreadyEndedException>();
+    }
+
+    [Fact]
+    public void Surrender_ShouldThrowException_WhenPlayerIsNotOnTurn()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+
+        var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(x =>
+        {
+            var player = Substitute.For<IPlayer>();
+            player.Id.Returns(PlayerId.New());
+            return player;
+        })
+        .ToList();
+
+        var currentPlayer = players.First();
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            hasEnded: false);
+
+        //Act
+        Action act = () => game.Surrender(players.Last().Id);
+
+        //Assert
+        act.ShouldThrow<PlayerIsNotOnTurnException>();
+    }
+
+    [Fact]
+    public void Surrender_ShouldThrowException_WhenAllPlayersHaveSurrender()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+
+        var player1 = Substitute.For<IPlayer>();
+        player1.Id.Returns(PlayerId.New());
+        player1.HasSurrendered.Returns(true);
+
+        var player2 = Substitute.For<IPlayer>();
+        player2.Id.Returns(PlayerId.New());
+        player2.HasSurrendered.Returns(true);
+
+        var currentPlayer = player1;
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            [player1, player2],
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            hasEnded: false);
+
+        //Act
+        Action act = () => game.Surrender(currentPlayer.Id);
+
+        //Assert
+        act.ShouldThrow<ArgumentOutOfRangeException>();
+        currentPlayer.Received().Surrender();
+    }
+
+    [Fact]
+    public void Surrender_ShouldEndGame_WhenOnlyOnePlayerIsLeft()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+
+        var player1 = Substitute.For<IPlayer>();
+        player1.Id.Returns(PlayerId.New());
+        player1.HasSurrendered.Returns(false);
+        player1.Score.Returns(8);
+
+        var player2 = Substitute.For<IPlayer>();
+        player2.Id.Returns(PlayerId.New());
+        player2.HasSurrendered.Returns(true);
+        player2.Score.Returns(21);
+
+        var currentPlayer = player1;
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            [player1, player2],
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            hasEnded: false);
+
+        //Act
+        game.Surrender(currentPlayer.Id);
+
+        //Assert
+        currentPlayer.Received().Surrender();
+        game.HasEnded.ShouldBeTrue();
+        game.Winners.ShouldContain(currentPlayer.Id);
+        game.Winners.ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void Surrender_ShouldMoveToNextTurn_WhenThereAreEnoughPlayersLeft()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+
+        var player1 = Substitute.For<IPlayer>();
+        player1.Id.Returns(PlayerId.New());
+        player1.HasSurrendered.Returns(false);
+        player1.Score.Returns(8);
+
+        var player2 = Substitute.For<IPlayer>();
+        player2.Id.Returns(PlayerId.New());
+        player2.HasSurrendered.Returns(true);
+        player2.Score.Returns(21);
+
+        var player3 = Substitute.For<IPlayer>();
+        player3.Id.Returns(PlayerId.New());
+        player3.HasSurrendered.Returns(false);
+        player3.Score.Returns(123);
+
+        var currentPlayer = player1;
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            [player1, player2, player3],
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            hasEnded: false);
+
+        //Act
+        game.Surrender(currentPlayer.Id);
+
+        //Assert
+        currentPlayer.Received().Surrender();
+        game.HasEnded.ShouldBeFalse();
+        game.Winners.ShouldBeEmpty();
+        game.CurrentPlayerId.ShouldBe(player3.Id);
     }
 }

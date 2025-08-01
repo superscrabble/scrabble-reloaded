@@ -53,7 +53,7 @@ public sealed class Game
 
     public PlayerId CurrentPlayerId => _currentPlayer.Id;
 
-    public ImmutableArray<PlayerId> Winners { get; private set; }
+    public ImmutableArray<PlayerId> Winners { get; private set; } = [];
 
     private IEnumerable<IPlayer> NonSurrenderedPlayers => _players.Where(p => !p.HasSurrendered);
 
