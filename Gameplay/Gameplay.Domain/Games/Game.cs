@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 
 using Gameplay.Domain.Bags;
+using Gameplay.Domain.Boards;
 using Gameplay.Domain.Players;
 using Gameplay.Domain.Settings;
 using Gameplay.Domain.Tiles;
@@ -13,6 +14,7 @@ public sealed class Game
     public const int MaximumPlayersCount = 4;
 
     private readonly IBag _bag;
+    private readonly IBoard _board;
     private readonly MaximumConsecutivePasses _maximumConsecutivePasses;
     private readonly ImmutableList<IPlayer> _players;
 
@@ -21,13 +23,19 @@ public sealed class Game
     private Game(
         GameId id,
         IBag bag,
+        IBoard board,
         List<IPlayer> players,
         IPlayer currentPlayer,
         MaximumConsecutivePasses maximumConsecutivePasses,
         bool hasEnded)
     {
         Id = id;
+
+        ArgumentNullException.ThrowIfNull(bag, nameof(bag));
         _bag = bag;
+
+        ArgumentNullException.ThrowIfNull(board, nameof(board));
+        _board = board;
 
         var distinctPlayersCount = players.Select(p => p.Id).Distinct().Count();
         ArgumentOutOfRangeException.ThrowIfNotEqual(players.Count, distinctPlayersCount);
@@ -117,18 +125,25 @@ public sealed class Game
         NextTurn();
     }
 
-    public void WriteWords(PlayerId playerId, WrittenWords writtenWords)
+    public void WriteWords(PlayerId playerId, ValidWords validWords)
     {
         ThrowIfGameHasEnded();
         ThrowIfPlayerIsNotOnTurn(playerId);
 
-        _currentPlayer.RemoveTilesFromRack(writtenWords.UsedPlayerTiles);
+        var usedPlayerTiles = validWords.TilePositions.Select(x => x.Tile).ToImmutableArray();
 
-        var newTiles = _bag.DrawTiles(writtenWords.UsedPlayerTiles.Length).ToImmutableArray();
+        _currentPlayer.RemoveTilesFromRack(usedPlayerTiles);
+
+        var newTiles = _bag.DrawTiles(usedPlayerTiles.Length).ToImmutableArray();
         _currentPlayer.AddTilesToRack(newTiles);
 
-        _currentPlayer.IncrementPoints(writtenWords.TotalPoints);
+        _currentPlayer.IncrementPoints(validWords.TotalPoints);
         _currentPlayer.ResetConsecutivePassesCount();
+
+        foreach (var tilePosition in validWords.TilePositions)
+        {
+            _board.SetTile(tilePosition.Tile, tilePosition.Position);
+        }
 
         var gameShouldEnd = _bag.TilesCount <= 0 && !_currentPlayer.HasAnyTiles;
 
@@ -219,6 +234,7 @@ public sealed class Game
     public static Game Create(
         GameId id,
         IBag bag,
+        IBoard board,
         List<IPlayer> players,
         IPlayer currentPlayer,
         MaximumConsecutivePasses maximumConsecutivePasses,
@@ -227,6 +243,7 @@ public sealed class Game
         var game = new Game(
             id,
             bag,
+            board,
             players,
             currentPlayer,
             maximumConsecutivePasses,

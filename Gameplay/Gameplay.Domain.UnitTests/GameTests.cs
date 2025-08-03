@@ -1,4 +1,5 @@
 using Gameplay.Domain.Bags;
+using Gameplay.Domain.Boards;
 using Gameplay.Domain.Games;
 using Gameplay.Domain.Players;
 using Gameplay.Domain.Settings;
@@ -18,29 +19,31 @@ public sealed class GameTests
     {
         //Arrange
         var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
 
         var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(x =>
-        {
-            var player = Substitute.For<IPlayer>();
-            player.Id.Returns(PlayerId.New());
-            return player;
-        })
-        .ToList();
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
 
         var currentPlayer = players.First();
 
         var game = Game.Create(
             GameId.New(),
             bag,
+            board,
             players,
             currentPlayer,
             MaximumConsecutivePasses.From(2),
-            hasEnded: false);
+            false);
 
         game.AsDynamic().HasEnded = true;
 
         //Act
-        Action act = () => game.Pass(currentPlayer.Id);
+        var act = () => game.Pass(currentPlayer.Id);
 
         //Assert
         act.ShouldThrow<GameHasAlreadyEndedException>();
@@ -51,27 +54,29 @@ public sealed class GameTests
     {
         //Arrange
         var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
 
         var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(x =>
-        {
-            var player = Substitute.For<IPlayer>();
-            player.Id.Returns(PlayerId.New());
-            return player;
-        })
-        .ToList();
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
 
         var currentPlayer = players.First();
 
         var game = Game.Create(
             GameId.New(),
             bag,
+            board,
             players,
             currentPlayer,
             MaximumConsecutivePasses.From(2),
-            hasEnded: false);
+            false);
 
         //Act
-        Action act = () => game.Pass(players.Last().Id);
+        var act = () => game.Pass(players.Last().Id);
 
         //Assert
         act.ShouldThrow<PlayerIsNotOnTurnException>();
@@ -82,6 +87,7 @@ public sealed class GameTests
     {
         //Arrange
         var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
 
         var player1 = Substitute.For<IPlayer>();
         var threePasses = ConsecutivePasses.Initial.Increment().Increment().Increment();
@@ -105,31 +111,32 @@ public sealed class GameTests
         player4.ConsecutivePasses.Returns(twoPasses);
         player4.HasSurrendered.Returns(false);
 
-        var currentPlayer = player4;
-
         var game = Game.Create(
             GameId.New(),
             bag,
+            board,
             [player1, player2, player3, player4],
-            currentPlayer,
+            player4,
             MaximumConsecutivePasses.From(2),
-            hasEnded: false);
+            false);
 
         //Act
-        game.Pass(currentPlayer.Id);
+        game.Pass(player4.Id);
 
         //Assert
-        currentPlayer.Received().IncrementConsecutivePasses();
+        player4.Received().IncrementConsecutivePasses();
         game.CurrentPlayerId.ShouldBeEquivalentTo(player2.Id);
         game.HasEnded.ShouldBeFalse();
         game.Winners.ShouldBeEmpty();
     }
 
     [Fact]
-    public void Pass_ShouldSubtractRemainingTilesPointsFromPlayersScoresAndEndGame_WhenAllPlayersHaveReachedMaximumPasses()
+    public void
+        Pass_ShouldSubtractRemainingTilesPointsFromPlayersScoresAndEndGame_WhenAllPlayersHaveReachedMaximumPasses()
     {
         //Arrange
         var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
 
         var player1 = Substitute.For<IPlayer>();
         var threePasses = ConsecutivePasses.Initial.Increment().Increment().Increment();
@@ -159,24 +166,23 @@ public sealed class GameTests
         player4.HasSurrendered.Returns(false);
         player4.Score.Returns(78);
 
-        var currentPlayer = player4;
-
         var players = new List<IPlayer> { player1, player2, player3, player4 };
 
         var game = Game.Create(
             GameId.New(),
             bag,
+            board,
             players,
-            currentPlayer,
+            player4,
             MaximumConsecutivePasses.From(2),
-            hasEnded: false);
+            false);
 
         //Act
-        game.Pass(currentPlayer.Id);
+        game.Pass(player4.Id);
 
         //Assert
-        currentPlayer.Received().IncrementConsecutivePasses();
-        game.CurrentPlayerId.ShouldBeEquivalentTo(currentPlayer.Id);
+        player4.Received().IncrementConsecutivePasses();
+        game.CurrentPlayerId.ShouldBeEquivalentTo(player4.Id);
 
         var nonSurrenderedPlayers = new List<IPlayer> { player1, player3, player4 };
         nonSurrenderedPlayers.ForEach(p => p.Received().SubtractRemainingTilesPointsFromScore());
@@ -192,29 +198,31 @@ public sealed class GameTests
     {
         //Arrange
         var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
 
         var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(x =>
-        {
-            var player = Substitute.For<IPlayer>();
-            player.Id.Returns(PlayerId.New());
-            return player;
-        })
-        .ToList();
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
 
         var currentPlayer = players.First();
 
         var game = Game.Create(
             GameId.New(),
             bag,
+            board,
             players,
             currentPlayer,
             MaximumConsecutivePasses.From(2),
-            hasEnded: false);
+            false);
 
         game.AsDynamic().HasEnded = true;
 
         //Act
-        Action act = () => game.Surrender(currentPlayer.Id);
+        var act = () => game.Surrender(currentPlayer.Id);
 
         //Assert
         act.ShouldThrow<GameHasAlreadyEndedException>();
@@ -225,27 +233,29 @@ public sealed class GameTests
     {
         //Arrange
         var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
 
         var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(x =>
-        {
-            var player = Substitute.For<IPlayer>();
-            player.Id.Returns(PlayerId.New());
-            return player;
-        })
-        .ToList();
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
 
         var currentPlayer = players.First();
 
         var game = Game.Create(
             GameId.New(),
             bag,
+            board,
             players,
             currentPlayer,
             MaximumConsecutivePasses.From(2),
-            hasEnded: false);
+            false);
 
         //Act
-        Action act = () => game.Surrender(players.Last().Id);
+        var act = () => game.Surrender(players.Last().Id);
 
         //Assert
         act.ShouldThrow<PlayerIsNotOnTurnException>();
@@ -256,6 +266,7 @@ public sealed class GameTests
     {
         //Arrange
         var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
 
         var player1 = Substitute.For<IPlayer>();
         player1.Id.Returns(PlayerId.New());
@@ -265,22 +276,21 @@ public sealed class GameTests
         player2.Id.Returns(PlayerId.New());
         player2.HasSurrendered.Returns(true);
 
-        var currentPlayer = player1;
-
         var game = Game.Create(
             GameId.New(),
             bag,
+            board,
             [player1, player2],
-            currentPlayer,
+            player1,
             MaximumConsecutivePasses.From(2),
-            hasEnded: false);
+            false);
 
         //Act
-        Action act = () => game.Surrender(currentPlayer.Id);
+        var act = () => game.Surrender(player1.Id);
 
         //Assert
         act.ShouldThrow<ArgumentOutOfRangeException>();
-        currentPlayer.Received().Surrender();
+        player1.Received().Surrender();
     }
 
     [Fact]
@@ -288,6 +298,7 @@ public sealed class GameTests
     {
         //Arrange
         var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
 
         var player1 = Substitute.For<IPlayer>();
         player1.Id.Returns(PlayerId.New());
@@ -299,23 +310,22 @@ public sealed class GameTests
         player2.HasSurrendered.Returns(true);
         player2.Score.Returns(21);
 
-        var currentPlayer = player1;
-
         var game = Game.Create(
             GameId.New(),
             bag,
+            board,
             [player1, player2],
-            currentPlayer,
+            player1,
             MaximumConsecutivePasses.From(2),
-            hasEnded: false);
+            false);
 
         //Act
-        game.Surrender(currentPlayer.Id);
+        game.Surrender(player1.Id);
 
         //Assert
-        currentPlayer.Received().Surrender();
+        player1.Received().Surrender();
         game.HasEnded.ShouldBeTrue();
-        game.Winners.ShouldContain(currentPlayer.Id);
+        game.Winners.ShouldContain(player1.Id);
         game.Winners.ShouldHaveSingleItem();
     }
 
@@ -324,6 +334,7 @@ public sealed class GameTests
     {
         //Arrange
         var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
 
         var player1 = Substitute.For<IPlayer>();
         player1.Id.Returns(PlayerId.New());
@@ -340,21 +351,20 @@ public sealed class GameTests
         player3.HasSurrendered.Returns(false);
         player3.Score.Returns(123);
 
-        var currentPlayer = player1;
-
         var game = Game.Create(
             GameId.New(),
             bag,
+            board,
             [player1, player2, player3],
-            currentPlayer,
+            player1,
             MaximumConsecutivePasses.From(2),
-            hasEnded: false);
+            false);
 
         //Act
-        game.Surrender(currentPlayer.Id);
+        game.Surrender(player1.Id);
 
         //Assert
-        currentPlayer.Received().Surrender();
+        player1.Received().Surrender();
         game.HasEnded.ShouldBeFalse();
         game.Winners.ShouldBeEmpty();
         game.CurrentPlayerId.ShouldBe(player3.Id);
