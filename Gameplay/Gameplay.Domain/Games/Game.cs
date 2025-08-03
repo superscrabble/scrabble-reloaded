@@ -118,8 +118,8 @@ public sealed class Game
         _bag.AddTiles(tilesToExchange);
         _bag.ShuffleTiles();
 
-        var newTiles = _bag.DrawTiles(tilesToExchange.Length).ToImmutableArray();
-        _currentPlayer.AddTilesToRack(newTiles);
+        var drawnTilesFromBag = _bag.DrawTiles(tilesToExchange.Length).ToImmutableArray();
+        _currentPlayer.AddTilesToRack(drawnTilesFromBag);
         _currentPlayer.ResetConsecutivePassesCount();
 
         NextTurn();
@@ -131,11 +131,10 @@ public sealed class Game
         ThrowIfPlayerIsNotOnTurn(playerId);
 
         var usedPlayerTiles = validWords.TilePositions.Select(x => x.Tile).ToImmutableArray();
-
         _currentPlayer.RemoveTilesFromRack(usedPlayerTiles);
 
-        var newTiles = _bag.DrawTiles(usedPlayerTiles.Length).ToImmutableArray();
-        _currentPlayer.AddTilesToRack(newTiles);
+        var drawnTilesFromBag = _bag.DrawTiles(usedPlayerTiles.Length).ToImmutableArray();
+        _currentPlayer.AddTilesToRack(drawnTilesFromBag);
 
         _currentPlayer.IncrementPoints(validWords.TotalPoints);
         _currentPlayer.ResetConsecutivePassesCount();

@@ -1,8 +1,11 @@
+using System.Collections.Immutable;
+
 using Gameplay.Domain.Bags;
 using Gameplay.Domain.Boards;
 using Gameplay.Domain.Games;
 using Gameplay.Domain.Players;
 using Gameplay.Domain.Settings;
+using Gameplay.Domain.Tiles;
 
 using NSubstitute;
 
@@ -21,7 +24,7 @@ public sealed class GameTests
         var bag = Substitute.For<IBag>();
         var board = Substitute.For<IBoard>();
 
-        var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(x =>
+        var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(_ =>
             {
                 var player = Substitute.For<IPlayer>();
                 player.Id.Returns(PlayerId.New());
@@ -56,7 +59,7 @@ public sealed class GameTests
         var bag = Substitute.For<IBag>();
         var board = Substitute.For<IBoard>();
 
-        var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(x =>
+        var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(_ =>
             {
                 var player = Substitute.For<IPlayer>();
                 player.Id.Returns(PlayerId.New());
@@ -200,7 +203,7 @@ public sealed class GameTests
         var bag = Substitute.For<IBag>();
         var board = Substitute.For<IBoard>();
 
-        var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(x =>
+        var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(_ =>
             {
                 var player = Substitute.For<IPlayer>();
                 player.Id.Returns(PlayerId.New());
@@ -235,7 +238,7 @@ public sealed class GameTests
         var bag = Substitute.For<IBag>();
         var board = Substitute.For<IBoard>();
 
-        var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(x =>
+        var players = Enumerable.Range(1, Game.MaximumPlayersCount).Select(_ =>
             {
                 var player = Substitute.For<IPlayer>();
                 player.Id.Returns(PlayerId.New());
@@ -368,5 +371,245 @@ public sealed class GameTests
         game.HasEnded.ShouldBeFalse();
         game.Winners.ShouldBeEmpty();
         game.CurrentPlayerId.ShouldBe(player3.Id);
+    }
+
+    [Fact]
+    public void ExchangeTiles_ShouldThrowException_WhenGameHasEnded()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount).Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            false);
+
+        game.AsDynamic().HasEnded = true;
+
+        //Act
+        var act = () => game.ExchangeTiles(currentPlayer.Id, []);
+
+        //Assert
+        act.ShouldThrow<GameHasAlreadyEndedException>();
+    }
+
+    [Fact]
+    public void ExchangeTiles_ShouldThrowException_WhenPlayerIsNotOnTurn()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount).Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            false);
+
+        //Act
+        var act = () => game.ExchangeTiles(players.Last().Id, []);
+
+        //Assert
+        act.ShouldThrow<PlayerIsNotOnTurnException>();
+    }
+
+    [Fact]
+    public void ExchangeTiles_ShouldThrowException_WhenTheNumberOfTilesToExchangeIsZero()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount).Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            false);
+
+        //Act
+        var act = () => game.ExchangeTiles(currentPlayer.Id, []);
+
+        //Assert
+        act.ShouldThrow<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void ExchangeTiles_ShouldThrowException_WhenTilesInBagAreLessThanPlayerRackCapacity()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+        bag.TilesCount.Returns(6);
+
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount).Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+        var rackCapacity = RackCapacity.From(7);
+        currentPlayer.RackCapacity.Returns(rackCapacity);
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            false);
+
+        var tilesToExchange = ImmutableArray.Create((Tile)null!);
+
+        //Act
+        var act = () => game.ExchangeTiles(currentPlayer.Id, tilesToExchange);
+
+        //Assert
+        act.ShouldThrow<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void ExchangeTiles_ShouldThrowException_WhenTilesToExchangeAreGreaterThanCurrentPlayerRackCapacity()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+        bag.TilesCount.Returns(7);
+
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount).Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+        var rackCapacity = RackCapacity.From(7);
+        currentPlayer.RackCapacity.Returns(rackCapacity);
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            false);
+
+        var tilesToExchange = Enumerable
+            .Range(1, rackCapacity.Value + 1)
+            .Select(Tile (_) => null!)
+            .ToImmutableArray();
+
+        //Act
+        var act = () => game.ExchangeTiles(currentPlayer.Id, tilesToExchange);
+
+        //Assert
+        act.ShouldThrow<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void ExchangeTiles_ShouldSwapTilesAndMoveToNextTurn_WhenTilesToExchangeAreCorrect()
+    {
+        //Arrange
+        var rackCapacity = RackCapacity.From(7);
+
+        var tilesToExchange = Enumerable
+            .Range(1, rackCapacity.Value)
+            .Select(Tile (_) => null!)
+            .ToImmutableArray();
+
+        var bag = Substitute.For<IBag>();
+        var drawnTilesFromBag = Enumerable
+            .Range(1, rackCapacity.Value)
+            .Select(Tile (_) => null!)
+            .ToImmutableArray();
+
+        bag.DrawTiles(tilesToExchange.Length).Returns(drawnTilesFromBag);
+        bag.TilesCount.Returns(7);
+
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount).Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+        currentPlayer.RackCapacity.Returns(rackCapacity);
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            false);
+
+        //Act
+        game.ExchangeTiles(currentPlayer.Id, tilesToExchange);
+
+        //Assert
+        currentPlayer.Received().RemoveTilesFromRack(tilesToExchange);
+        bag.Received().AddTiles(tilesToExchange);
+        bag.Received().ShuffleTiles();
+
+        bag.Received().DrawTiles(tilesToExchange.Length);
+        currentPlayer.Received().AddTilesToRack(drawnTilesFromBag);
+        currentPlayer.ResetConsecutivePassesCount();
+
+        game.CurrentPlayerId.ShouldNotBe(currentPlayer.Id);
+        game.CurrentPlayerId.ShouldBe(players.Last().Id);
     }
 }
