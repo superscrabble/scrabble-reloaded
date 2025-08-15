@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 
-using Gameplay.Domain.Settings;
 using Gameplay.Domain.Tiles;
 
 namespace Gameplay.Domain.Players;

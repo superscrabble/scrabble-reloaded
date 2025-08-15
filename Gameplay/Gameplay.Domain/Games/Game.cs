@@ -2,9 +2,10 @@ using System.Collections.Immutable;
 
 using Gameplay.Domain.Bags;
 using Gameplay.Domain.Boards;
+using Gameplay.Domain.Games.Exceptions;
 using Gameplay.Domain.Players;
-using Gameplay.Domain.Settings;
 using Gameplay.Domain.Tiles;
+using Gameplay.Domain.Words;
 
 namespace Gameplay.Domain.Games;
 
@@ -125,15 +126,13 @@ public sealed class Game
         NextTurn();
     }
 
-    public void WriteWords(PlayerId playerId, ValidWords validWords)
+    public void WriteWords(PlayerId playerId, IValidWords validWords)
     {
         ThrowIfGameHasEnded();
         ThrowIfPlayerIsNotOnTurn(playerId);
 
-        var usedPlayerTiles = validWords.TilePositions.Select(x => x.Tile).ToImmutableArray();
-        _currentPlayer.RemoveTilesFromRack(usedPlayerTiles);
-
-        var drawnTilesFromBag = _bag.DrawTiles(usedPlayerTiles.Length).ToImmutableArray();
+        _currentPlayer.RemoveTilesFromRack(validWords.Tiles);
+        var drawnTilesFromBag = _bag.DrawTiles(validWords.Tiles.Length).ToImmutableArray();
         _currentPlayer.AddTilesToRack(drawnTilesFromBag);
 
         _currentPlayer.IncrementPoints(validWords.TotalPoints);
@@ -141,7 +140,7 @@ public sealed class Game
 
         foreach (var tilePosition in validWords.TilePositions)
         {
-            _board.SetTile(tilePosition.Tile, tilePosition.Position);
+            _board.SetTile(tilePosition.Key, tilePosition.Value);
         }
 
         var gameShouldEnd = _bag.TilesCount <= 0 && !_currentPlayer.HasAnyTiles;
@@ -152,7 +151,7 @@ public sealed class Game
             return;
         }
 
-        AddOpponenetsRemainingTilesPointsToCurrentPlayerScore();
+        AddOpponentsRemainingTilesPointsToCurrentPlayerScore();
         SubtractRemainingTilesPointsFromPlayerScores();
         EndGame();
     }
@@ -213,7 +212,7 @@ public sealed class Game
         }
     }
 
-    private void AddOpponenetsRemainingTilesPointsToCurrentPlayerScore()
+    private void AddOpponentsRemainingTilesPointsToCurrentPlayerScore()
     {
         var opponentsPoints = NonSurrenderedPlayers
             .Where(p => p.Id != _currentPlayer.Id)

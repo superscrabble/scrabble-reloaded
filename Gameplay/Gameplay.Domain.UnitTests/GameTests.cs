@@ -3,9 +3,10 @@ using System.Collections.Immutable;
 using Gameplay.Domain.Bags;
 using Gameplay.Domain.Boards;
 using Gameplay.Domain.Games;
+using Gameplay.Domain.Games.Exceptions;
 using Gameplay.Domain.Players;
-using Gameplay.Domain.Settings;
 using Gameplay.Domain.Tiles;
+using Gameplay.Domain.Words;
 
 using NSubstitute;
 
@@ -127,7 +128,7 @@ public sealed class GameTests
         game.Pass(player4.Id);
 
         //Assert
-        player4.Received().IncrementConsecutivePasses();
+        player4.Received(1).IncrementConsecutivePasses();
         game.CurrentPlayerId.ShouldBeEquivalentTo(player2.Id);
         game.HasEnded.ShouldBeFalse();
         game.Winners.ShouldBeEmpty();
@@ -184,11 +185,11 @@ public sealed class GameTests
         game.Pass(player4.Id);
 
         //Assert
-        player4.Received().IncrementConsecutivePasses();
+        player4.Received(1).IncrementConsecutivePasses();
         game.CurrentPlayerId.ShouldBeEquivalentTo(player4.Id);
 
         var nonSurrenderedPlayers = new List<IPlayer> { player1, player3, player4 };
-        nonSurrenderedPlayers.ForEach(p => p.Received().SubtractRemainingTilesPointsFromScore());
+        nonSurrenderedPlayers.ForEach(p => p.Received(1).SubtractRemainingTilesPointsFromScore());
 
         game.HasEnded.ShouldBeTrue();
         game.Winners.ShouldContain(player1.Id);
@@ -293,7 +294,7 @@ public sealed class GameTests
 
         //Assert
         act.ShouldThrow<ArgumentOutOfRangeException>();
-        player1.Received().Surrender();
+        player1.Received(1).Surrender();
     }
 
     [Fact]
@@ -326,7 +327,7 @@ public sealed class GameTests
         game.Surrender(player1.Id);
 
         //Assert
-        player1.Received().Surrender();
+        player1.Received(1).Surrender();
         game.HasEnded.ShouldBeTrue();
         game.Winners.ShouldContain(player1.Id);
         game.Winners.ShouldHaveSingleItem();
@@ -367,7 +368,7 @@ public sealed class GameTests
         game.Surrender(player1.Id);
 
         //Assert
-        player1.Received().Surrender();
+        player1.Received(1).Surrender();
         game.HasEnded.ShouldBeFalse();
         game.Winners.ShouldBeEmpty();
         game.CurrentPlayerId.ShouldBe(player3.Id);
@@ -601,15 +602,371 @@ public sealed class GameTests
         game.ExchangeTiles(currentPlayer.Id, tilesToExchange);
 
         //Assert
-        currentPlayer.Received().RemoveTilesFromRack(tilesToExchange);
-        bag.Received().AddTiles(tilesToExchange);
-        bag.Received().ShuffleTiles();
+        currentPlayer.Received(1).RemoveTilesFromRack(tilesToExchange);
+        bag.Received(1).AddTiles(tilesToExchange);
+        bag.Received(1).ShuffleTiles();
 
-        bag.Received().DrawTiles(tilesToExchange.Length);
-        currentPlayer.Received().AddTilesToRack(drawnTilesFromBag);
-        currentPlayer.ResetConsecutivePassesCount();
+        bag.Received(1).DrawTiles(tilesToExchange.Length);
+        currentPlayer.Received(1).AddTilesToRack(drawnTilesFromBag);
+        currentPlayer.Received(1).ResetConsecutivePassesCount();
 
         game.CurrentPlayerId.ShouldNotBe(currentPlayer.Id);
         game.CurrentPlayerId.ShouldBe(players.Last().Id);
+    }
+
+    [Fact]
+    public void WriteWords_ShouldThrowException_WhenGameHasEnded()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount).Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            false);
+
+        game.AsDynamic().HasEnded = true;
+
+        var validWords = Substitute.For<IValidWords>();
+
+        //Act
+        var act = () => game.WriteWords(currentPlayer.Id, validWords);
+
+        //Assert
+        act.ShouldThrow<GameHasAlreadyEndedException>();
+    }
+
+    [Fact]
+    public void WriteWords_ShouldThrowException_WhenPlayerIsNotOnTurn()
+    {
+        //Arrange
+        var bag = Substitute.For<IBag>();
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount).Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(2),
+            false);
+
+        var validWords = Substitute.For<IValidWords>();
+
+        //Act
+        var act = () => game.WriteWords(players.Last().Id, validWords);
+
+        //Assert
+        act.ShouldThrow<PlayerIsNotOnTurnException>();
+    }
+
+    [Fact]
+    public void WriteWords_ShouldPerformAllMandatoryPlayerActionsCorrectly_WhenGameHasNotYetEndedAndPlayerIsOnTurn()
+    {
+        //Arrange
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount)
+            .Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+
+        var validWords = Substitute.For<IValidWords>();
+
+        var tiles = new List<Tile>
+            {
+                new(TileType.Normal, 1, 'A'),
+                new(TileType.Normal, 3, 'C'),
+                new(TileType.Normal, 2, 'B'),
+                new(TileType.Normal, 5, 'P')
+            }
+            .ToImmutableArray();
+
+        validWords.Tiles.Returns(tiles);
+
+        var tilePositions = tiles
+            .Select((t, i) => new KeyValuePair<Tile, BoardCellPosition>(t, new BoardCellPosition(2, i + 1)))
+            .ToImmutableDictionary();
+
+        validWords.TilePositions.Returns(tilePositions);
+
+        var totalPoints = tiles.Sum(t => t.Points);
+        validWords.TotalPoints.Returns(totalPoints);
+
+        var bag = Substitute.For<IBag>();
+        var tilesInBag = Enumerable.Range(1, 3)
+            .Select(_ => new Tile(TileType.Normal, 2, 'B'))
+            .ToImmutableArray();
+
+        bag.DrawTiles(tiles.Length).Returns(tilesInBag);
+        bag.TilesCount.Returns(5);
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(1),
+            false);
+
+        //Act
+        game.WriteWords(currentPlayer.Id, validWords);
+
+        //Assert
+        currentPlayer.Received(1).RemoveTilesFromRack(tiles);
+        _ = validWords.Received(2).Tiles;
+
+        bag.Received(1).DrawTiles(validWords.Tiles.Length);
+        currentPlayer.Received(1).AddTilesToRack(tilesInBag);
+
+        currentPlayer.Received(1).IncrementPoints(totalPoints);
+        _ = validWords.Received(1).TotalPoints;
+        currentPlayer.ResetConsecutivePassesCount();
+
+        _ = validWords.Received(1).TilePositions;
+
+        foreach (var tilePosition in validWords.TilePositions)
+        {
+            board.Received(1).SetTile(tilePosition.Key, tilePosition.Value);
+        }
+
+        _ = bag.Received(1).TilesCount;
+    }
+
+    [Fact]
+    public void WriteWords_ShouldMoveToNextTurn_WhenBagStillHasRemainingTiles()
+    {
+        //Arrange
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount)
+            .Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+        currentPlayer.HasAnyTiles.Returns(false);
+
+        var validWords = Substitute.For<IValidWords>();
+
+        var tiles = new List<Tile>
+            {
+                new(TileType.Normal, 1, 'A'),
+                new(TileType.Normal, 3, 'C'),
+                new(TileType.Normal, 2, 'B'),
+                new(TileType.Normal, 5, 'P')
+            }
+            .ToImmutableArray();
+
+        validWords.Tiles.Returns(tiles);
+
+        var tilePositions = tiles
+            .Select((t, i) => new KeyValuePair<Tile, BoardCellPosition>(t, new BoardCellPosition(2, i + 1)))
+            .ToImmutableDictionary();
+
+        validWords.TilePositions.Returns(tilePositions);
+
+        var totalPoints = tiles.Sum(t => t.Points);
+        validWords.TotalPoints.Returns(totalPoints);
+
+        var bag = Substitute.For<IBag>();
+        var tilesInBag = Enumerable.Range(1, 3)
+            .Select(_ => new Tile(TileType.Normal, 2, 'B'))
+            .ToImmutableArray();
+
+        bag.DrawTiles(tiles.Length).Returns(tilesInBag);
+        bag.TilesCount.Returns(12);
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(1),
+            false);
+
+        //Act
+        game.WriteWords(currentPlayer.Id, validWords);
+
+        //Assert
+        game.CurrentPlayerId.ShouldBe(players.Last().Id);
+    }
+
+    [Fact]
+    public void WriteWords_ShouldMoveToNextTurn_WhenBagIsEmptyButPlayerStillHasTiles()
+    {
+        //Arrange
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount)
+            .Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+        currentPlayer.HasAnyTiles.Returns(true);
+
+        var validWords = Substitute.For<IValidWords>();
+
+        var tiles = new List<Tile>
+            {
+                new(TileType.Normal, 1, 'A'),
+                new(TileType.Normal, 3, 'C'),
+                new(TileType.Normal, 2, 'B'),
+                new(TileType.Normal, 5, 'P')
+            }
+            .ToImmutableArray();
+
+        validWords.Tiles.Returns(tiles);
+
+        var tilePositions = tiles
+            .Select((t, i) => new KeyValuePair<Tile, BoardCellPosition>(t, new BoardCellPosition(2, i + 1)))
+            .ToImmutableDictionary();
+
+        validWords.TilePositions.Returns(tilePositions);
+
+        var totalPoints = tiles.Sum(t => t.Points);
+        validWords.TotalPoints.Returns(totalPoints);
+
+        var bag = Substitute.For<IBag>();
+        var tilesInBag = Enumerable.Range(1, 3)
+            .Select(_ => new Tile(TileType.Normal, 2, 'B'))
+            .ToImmutableArray();
+
+        bag.DrawTiles(tiles.Length).Returns(tilesInBag);
+        bag.TilesCount.Returns(0);
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(1),
+            false);
+
+        //Act
+        game.WriteWords(currentPlayer.Id, validWords);
+
+        //Assert
+        game.CurrentPlayerId.ShouldBe(players.Last().Id);
+    }
+
+    [Fact]
+    public void WriteWords_ShouldCalculateFinalPlayerScoresAndEndGame_WhenBagIsEmptyAndPlayerHasNoTiles()
+    {
+        //Arrange
+        var board = Substitute.For<IBoard>();
+
+        var players = Enumerable.Range(1, Game.MinimumPlayersCount)
+            .Select(_ =>
+            {
+                var player = Substitute.For<IPlayer>();
+                player.Id.Returns(PlayerId.New());
+                player.RemainingTilesPoints.Returns(33);
+                return player;
+            })
+            .ToList();
+
+        var currentPlayer = players.First();
+        currentPlayer.HasAnyTiles.Returns(false);
+        currentPlayer.Score.Returns(20);
+
+        var validWords = Substitute.For<IValidWords>();
+
+        var tiles = new List<Tile>
+            {
+                new(TileType.Normal, 1, 'A'),
+                new(TileType.Normal, 3, 'C'),
+                new(TileType.Normal, 2, 'B'),
+                new(TileType.Normal, 5, 'P')
+            }
+            .ToImmutableArray();
+
+        validWords.Tiles.Returns(tiles);
+
+        var tilePositions = tiles
+            .Select((t, i) => new KeyValuePair<Tile, BoardCellPosition>(t, new BoardCellPosition(2, i + 1)))
+            .ToImmutableDictionary();
+
+        validWords.TilePositions.Returns(tilePositions);
+
+        var totalPoints = tiles.Sum(t => t.Points);
+        validWords.TotalPoints.Returns(totalPoints);
+
+        var bag = Substitute.For<IBag>();
+        var tilesInBag = Enumerable.Range(1, 3)
+            .Select(_ => new Tile(TileType.Normal, 2, 'B'))
+            .ToImmutableArray();
+
+        bag.DrawTiles(tiles.Length).Returns(tilesInBag);
+        bag.TilesCount.Returns(0);
+
+        var game = Game.Create(
+            GameId.New(),
+            bag,
+            board,
+            players,
+            currentPlayer,
+            MaximumConsecutivePasses.From(1),
+            false);
+
+        //Act
+        game.WriteWords(currentPlayer.Id, validWords);
+
+        //Assert
+        currentPlayer.Received(1).IncrementPoints(players.Last().RemainingTilesPoints);
+
+        foreach (var player in players)
+        {
+            player.Received(1).SubtractRemainingTilesPointsFromScore();
+        }
+
+        game.CurrentPlayerId.ShouldBe(currentPlayer.Id);
+        game.HasEnded.ShouldBeTrue();
+        game.Winners.Length.ShouldBe(1);
+        game.Winners.ShouldContain(currentPlayer.Id);
     }
 }

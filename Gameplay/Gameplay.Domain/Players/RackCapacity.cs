@@ -1,4 +1,4 @@
-namespace Gameplay.Domain.Settings;
+namespace Gameplay.Domain.Players;
 
 public sealed record RackCapacity
 {
